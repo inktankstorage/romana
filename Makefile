@@ -6,6 +6,7 @@ SRC := $(shell pwd)
 
 # set these only if not set with ?=
 VERSION ?= $(shell $(SRC)/get-versions.sh VERSION)
+DIST_VERSION ?= "~"$(shell sed '/CODENAME/!d;s/^.*=//' /etc/lsb-release)"1"
 REVISION ?= $(shell $(SRC)/get-versions.sh REVISION)
 BUILD_PRODUCT_TGZ=$(SRC)/calamari-clients-build-output.tar.gz
 
@@ -13,8 +14,12 @@ RPM_REVISION ?= $(shell $(SRC)/get-versions.sh -r REVISION)
 RPMBUILD=$(SRC)/../rpmbuild
 
 DIST ?= unstable
-BPTAG ?= ""
-DEBEMAIL ?= dan.mick@inktank.com
+DCH_VERSION=$(shell git describe | sed 's/^v//')
+PACKAGE_VERSION ?= 1
+CODENAME ?= $(shell lsb_release -sc)
+# You must set BPTAG when DCH_VERSION does not match a git tag
+BPTAG ?= "" # ~bpoNN+M where NN is the Debian major version and M is the 'package revision'
+DEBEMAIL ?= dmick@redhat.com
 ARCH ?= x86_64
 
 TSCOMMIT=$(shell git log -n1 --pretty=format:"%ct.%h")
@@ -44,9 +49,16 @@ default: build
 
 DATESTR=$(shell /bin/echo -n "built on "; date)
 set_deb_version:
-	DEBEMAIL=$(DEBEMAIL) dch \
-		--newversion $(VERSION)-$(REVISION)$(BPTAG) \
-		-D $(DIST) --force-bad-version --force-distribution "$(DATESTR)"
+	@echo "target: $@"
+	if [ "$(shell lsb_release -si)" = "Ubuntu" ] ; then \
+		DEBEMAIL=$(DEBEMAIL) dch \
+			--newversion $(DCH_VERSION)-$(PACKAGE_VERSION)$(CODENAME) \
+			-D $(DIST) --force-bad-version --force-distribution "$(DATESTR)" ; \
+	else \
+		DEBEMAIL=$(DEBEMAIL) dch \
+			--newversion $(DCH_VERSION)$(BPTAG) \
+			-D $(DIST) --force-bad-version --force-distribution "$(DATESTR)" ; \
+	fi
 
 build:
 	if [ "$(REAL_BUILD)" = y ] ; then \
